@@ -58,12 +58,13 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.firestore)
     implementation(libs.play.services.auth)
-
+    implementation(libs.firebase.appcheck.playintegrity)
+    implementation(libs.stream.webrtc.android)
 
     // Hilt
     implementation(libs.hilt.android)
     implementation(libs.navigation.compose)
-    implementation(libs.play.services.auth)
+    // implementation(libs.play.services.auth) // This is duplicated, already included above
     kapt(libs.dagger.hilt.compiler)
 
     testImplementation(libs.junit)
@@ -74,3 +75,4 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+

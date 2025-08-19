@@ -16,8 +16,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        //
+        // JCenter is sunset, so it should ideally be removed if you have it.
+        // If you still have jcenter() here, try removing it or placing
+        // mavenCentral() above it.
     }
 }
+
 
 rootProject.name = "MindEase"
 include(":app")

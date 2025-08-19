@@ -8,8 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mindease.auth.AuthViewModel
+import com.example.mindease.call.CallViewModel
 import com.example.mindease.data.models.User
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -22,28 +22,28 @@ data class WaitingUser(
 @Composable
 fun HomeScreen(
     user: User? = null,
-    viewModel: AuthViewModel = viewModel(),
+    viewModel: AuthViewModel,
+    callViewModel: CallViewModel, // ✅ Use the shared CallViewModel from HomeBottomNav
     modifier: Modifier = Modifier,
-    onStartChat: (chatId: String) -> Unit
+    navToCallScreen: (sessionId: String) -> Unit
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val db = FirebaseFirestore.getInstance()
     var stressReason by remember { mutableStateOf("") }
     var waitingUsers by remember { mutableStateOf(listOf<WaitingUser>()) }
 
-    // Listen to waiting users only if currentUser is not null
     LaunchedEffect(currentUser) {
-        currentUser?.let { user ->
+        currentUser?.let { self ->
             db.collection("waiting_users")
                 .addSnapshotListener { snapshot, _ ->
-                    if (snapshot != null) {
-                        waitingUsers = snapshot.documents
-                            .filter { it.id != user.uid } // Exclude self
-                            .map {
+                    snapshot?.let {
+                        waitingUsers = it.documents
+                            .filter { doc -> doc.id != self.uid }
+                            .map { doc ->
                                 WaitingUser(
-                                    uid = it.id,
-                                    nickname = it.getString("nickname") ?: "User",
-                                    stressReason = it.getString("stressReason") ?: ""
+                                    uid = doc.id,
+                                    nickname = doc.getString("nickname") ?: "User",
+                                    stressReason = doc.getString("stressReason") ?: ""
                                 )
                             }
                     }
@@ -51,17 +51,9 @@ fun HomeScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Welcome, ${currentUser?.name ?: "User"}",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
+    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+        Text("Welcome, ${currentUser?.name ?: "User"}", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = stressReason,
             onValueChange = { stressReason = it },
@@ -69,24 +61,13 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
         Text("Users waiting to connect:", style = MaterialTheme.typography.titleMedium)
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
+        LazyColumn(modifier = Modifier.weight(1f)) {
             items(waitingUsers) { waitingUser ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Nickname: ${waitingUser.nickname}")
                             Text("Stress: ${waitingUser.stressReason}")
@@ -96,15 +77,16 @@ fun HomeScreen(
                                 val session = hashMapOf(
                                     "userA_uid" to self.uid,
                                     "userB_uid" to waitingUser.uid,
-                                    "consentA" to false,
-                                    "consentB" to false,
-                                    "status" to "pending"
+                                    "consentChatA" to false,
+                                    "consentChatB" to false,
+                                    "status" to "ringing"
                                 )
                                 db.collection("call_sessions")
                                     .add(session)
                                     .addOnSuccessListener { docRef ->
-                                        println("Call session created: ${docRef.id}")
-                                        // Chat will only start when both consent
+                                        // Use the shared CallViewModel
+                                        callViewModel.startCall(docRef.id, currentUserUid = self.uid)
+                                        navToCallScreen(docRef.id)
                                     }
                             }
                         }) {
@@ -115,14 +97,14 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
         Button(
             onClick = {
                 currentUser?.let { self ->
                     db.collection("waiting_users").document(self.uid)
                         .set(
                             mapOf(
-                                "nickname" to self.name,
+                                "nickname" to (self.name ?: "User"),
                                 "stressReason" to stressReason
                             )
                         )
@@ -131,16 +113,6 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Wait for someone")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                // Placeholder for AI Friend
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Connect with AI Friend (Coming Soon)")
         }
     }
 }
