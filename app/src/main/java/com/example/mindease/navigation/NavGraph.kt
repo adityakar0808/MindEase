@@ -1,8 +1,5 @@
 package com.example.mindease.navigation
 
-import android.app.Activity
-import android.content.Intent
-import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -14,8 +11,10 @@ import com.example.mindease.auth.LoginScreen
 import com.example.mindease.auth.SignupScreen
 import com.example.mindease.home.HomeScreen
 import com.example.mindease.auth.AuthViewModel
+import com.example.mindease.splash.SplashScreen
 
 sealed class Screen(val route: String) {
+    object Splash : Screen("splash")
     object Login : Screen("login")
     object Signup : Screen("signup")
     object Home : Screen("home")
@@ -25,8 +24,6 @@ sealed class Screen(val route: String) {
 fun AppNavGraph(
     navController: NavHostController,
     viewModel: AuthViewModel,
-    googleSignInLauncher: ActivityResultLauncher<Intent>,
-    activity: Activity,
     modifier: Modifier = Modifier
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
@@ -41,11 +38,27 @@ fun AppNavGraph(
         startDestination = startDestination,
         modifier = modifier
     ) {
+
+        // Splash screen
+        composable(Screen.Splash.route) {
+            SplashScreen(
+                onSplashFinished = {
+                    if (currentUser == null) {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    }
+                }
+            )
+        }
+        // Login screen
         composable(Screen.Login.route) {
             LoginScreen(
-                authViewModel = viewModel,
-                activity = activity,
-                googleSignInLauncher = googleSignInLauncher,
+                viewModel = viewModel,
                 onLoginSuccess = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
@@ -54,21 +67,21 @@ fun AppNavGraph(
                 onNavigateToSignup = { navController.navigate(Screen.Signup.route) }
             )
         }
+
+        // Signup screen
         composable(Screen.Signup.route) {
             SignupScreen(
-                viewModel,
-                onSignupSuccess = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Signup.route) { inclusive = true }
-                    }
-                },
+                viewModel = viewModel,
                 onNavigateToLogin = { navController.popBackStack() }
             )
         }
+
+        // Home screen
         composable(Screen.Home.route) {
             HomeScreen(
-                viewModel,
+                viewModel = viewModel,
                 onLogout = {
+                    viewModel.logout()
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }

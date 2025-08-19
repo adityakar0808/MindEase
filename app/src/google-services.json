@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "770228708228-5e6frijug76kitdpo24rjm7squh4oqtn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mindease",
+            "certificate_hash": "93a767e254aafa00650f9b798cd6f90c50e1ee50"
+          }
+        },
+        {
           "client_id": "770228708228-q5p85jvhfs89pknlb0d9hfljjfk5rt0e.apps.googleusercontent.com",
           "client_type": 3
         }

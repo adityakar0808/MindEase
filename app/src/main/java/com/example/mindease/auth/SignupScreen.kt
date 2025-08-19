@@ -7,26 +7,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-
 @Composable
 fun SignupScreen(
     viewModel: AuthViewModel,
-    onSignupSuccess: () -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
+    var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     val errorMessage by viewModel.error.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val currentUser by viewModel.currentUser.collectAsState()
-
-    // Navigate automatically if signup successful
-    LaunchedEffect(currentUser) {
-        if (currentUser != null) {
-            onSignupSuccess()
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -36,6 +28,15 @@ fun SignupScreen(
         Text("Sign Up", style = MaterialTheme.typography.headlineMedium)
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Name") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = email,
@@ -56,7 +57,9 @@ fun SignupScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = { viewModel.signup(email, password) },
+            onClick = {
+                viewModel.signup(email, password, name)
+            },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading
         ) {
@@ -69,7 +72,16 @@ fun SignupScreen(
             Text("Already have an account? Login")
         }
 
-        // Show error if exists
+        // Show success message after signup
+        successMessage?.let {
+            Text(
+                text = it,
+                color = Color(0xFF2E7D32), // green
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        // Show error message if any
         errorMessage?.let {
             Text(
                 text = it,
