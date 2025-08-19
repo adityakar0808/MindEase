@@ -29,6 +29,10 @@ class AuthViewModel : ViewModel() {
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage
 
+    // New state for navigation
+    private val _navigateToLogin = MutableStateFlow(false)
+    val navigateToLogin: StateFlow<Boolean> = _navigateToLogin
+
     init {
         listenToCurrentUser()
     }
@@ -132,13 +136,14 @@ class AuthViewModel : ViewModel() {
                             ?.addOnCompleteListener { verifyTask ->
                                 if (verifyTask.isSuccessful) {
                                     val user = buildUser()?.copy(name = name)
-                                    _currentUser.value = user
-                                    user?.let { saveUserToFirestore(it) }
+                                    // _currentUser.value = user // User should not be set here as they need to verify
+                                    user?.let { saveUserToFirestore(it) } // Save user details
 
                                     _successMessage.value =
                                         "Verification email sent to ${firebaseUser.email}. Please verify before logging in."
 
                                     auth.signOut() // 🔥 Logout until email verified
+                                    _navigateToLogin.value = true // Trigger navigation
                                 } else {
                                     _error.value =
                                         verifyTask.exception?.localizedMessage ?: "Failed to send verification email"
@@ -151,7 +156,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun loginAnonymously() {
+   /* fun loginAnonymously() {
         _isLoading.value = true
         auth.signInAnonymously()
             .addOnCompleteListener { task ->
@@ -162,7 +167,7 @@ class AuthViewModel : ViewModel() {
                     _error.value = task.exception?.localizedMessage ?: "Anonymous login failed"
                 }
             }
-    }
+    }*/
 
     fun firebaseAuthWithGoogle(account: GoogleSignInAccount) {
         _isLoading.value = true
@@ -204,9 +209,39 @@ class AuthViewModel : ViewModel() {
                 _error.value = e.message
             }
     }
+    fun giveConsent(sessionId: String, isUserA: Boolean) {
+        val field = if (isUserA) "consentA" else "consentB"
+        db.collection("call_sessions").document(sessionId)
+            .update(field, true)
+            .addOnSuccessListener {
+                // Check if both consented
+                db.collection("call_sessions").document(sessionId).get()
+                    .addOnSuccessListener { doc ->
+                        val consentA = doc.getBoolean("consentA") ?: false
+                        val consentB = doc.getBoolean("consentB") ?: false
+                        if (consentA && consentB) {
+                            db.collection("call_sessions").document(sessionId)
+                                .update("status", "connected")
+                            // Create chat document
+                            db.collection("chats").document(sessionId).set(
+                                mapOf(
+                                    "userA_uid" to doc.getString("userA_uid"),
+                                    "userB_uid" to doc.getString("userB_uid")
+                                )
+                            )
+                        }
+                    }
+            }
+    }
+
 
     fun clearMessages() {
         _error.value = null
         _successMessage.value = null
+    }
+
+    // Method to reset navigation state
+    fun onNavigatedToLogin() {
+        _navigateToLogin.value = false
     }
 }

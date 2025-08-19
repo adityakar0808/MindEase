@@ -18,12 +18,14 @@ firebaseFirestore = "26.0.0"
 lifecycleViewmodelCompose = "2.9.2"  # Added
 composeUiText = "1.7.0"  # Added
 hilt = "2.52" # Added Hilt version
+materialIconsExtended = "1.6.0"
 navigationCompose = "2.8.0-beta06"
 navigationComposeVersion = "2.9.3"
 playServicesAuth = "21.4.0" # Added Navigation Compose version
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
 dagger-hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hiltCompiler" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }

@@ -9,15 +9,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.mindease.auth.LoginScreen
 import com.example.mindease.auth.SignupScreen
-import com.example.mindease.home.HomeScreen
 import com.example.mindease.auth.AuthViewModel
+import com.example.mindease.home.HomeBottomNav
 import com.example.mindease.splash.SplashScreen
 
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Login : Screen("login")
     object Signup : Screen("signup")
-    object Home : Screen("home")
+    object Home : Screen("home") // Main screen after login
 }
 
 @Composable
@@ -27,11 +27,7 @@ fun AppNavGraph(
     modifier: Modifier = Modifier
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
-    val startDestination = if (currentUser != null) {
-        Screen.Home.route
-    } else {
-        Screen.Login.route
-    }
+    val startDestination = Screen.Splash.route
 
     NavHost(
         navController = navController,
@@ -55,6 +51,7 @@ fun AppNavGraph(
                 }
             )
         }
+
         // Login screen
         composable(Screen.Login.route) {
             LoginScreen(
@@ -76,17 +73,19 @@ fun AppNavGraph(
             )
         }
 
-        // Home screen
+        // Home screen (with Bottom Navigation for Home / Inbox / Profile)
         composable(Screen.Home.route) {
-            HomeScreen(
-                viewModel = viewModel,
-                onLogout = {
-                    viewModel.logout()
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+            currentUser?.let { user ->
+                HomeBottomNav(
+                    viewModel = viewModel,
+                    onLogout = {
+                        viewModel.logout()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
 }

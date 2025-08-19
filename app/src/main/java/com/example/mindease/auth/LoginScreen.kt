@@ -126,7 +126,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
+            /*Button(
                 onClick = { viewModel.loginAnonymously() },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading
@@ -134,7 +134,7 @@ fun LoginScreen(
                 Text("Continue as Guest")
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))*/
 
             // ✅ Google Sign-In button
             Button(
