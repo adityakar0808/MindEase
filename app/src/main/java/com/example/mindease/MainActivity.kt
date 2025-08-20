@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.example.mindease.auth.AuthViewModel
 import com.example.mindease.navigation.AppNavGraph
@@ -18,7 +19,8 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             AppNavGraph(
                 navController = navController,
-                viewModel = authViewModel
+                viewModel = authViewModel,
+                modifier = Modifier
             )
         }
     }

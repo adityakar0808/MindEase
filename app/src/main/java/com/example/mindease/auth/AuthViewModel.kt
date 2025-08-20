@@ -156,7 +156,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-   /* fun loginAnonymously() {
+    /*fun loginAnonymously() {
         _isLoading.value = true
         auth.signInAnonymously()
             .addOnCompleteListener { task ->

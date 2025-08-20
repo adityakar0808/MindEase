@@ -4,16 +4,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.mindease.auth.AuthViewModel
 import com.example.mindease.auth.LoginScreen
 import com.example.mindease.auth.SignupScreen
-import com.example.mindease.auth.AuthViewModel
 import com.example.mindease.call.CallViewModel
+import com.example.mindease.call.CallViewModelFactory
 import com.example.mindease.home.HomeBottomNav
 import com.example.mindease.splash.SplashScreen
+import com.google.firebase.firestore.FirebaseFirestore
 
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
@@ -31,8 +34,11 @@ fun AppNavGraph(
     val currentUser by viewModel.currentUser.collectAsState()
     val startDestination = Screen.Splash.route
 
-    // ✅ Create CallViewModel once here (shared everywhere)
-    val callViewModel: CallViewModel = viewModel()
+    // ✅ Use factory to pass context and Firestore
+    val context = LocalContext.current
+    val callViewModel: CallViewModel = viewModel(
+        factory = CallViewModelFactory(context, FirebaseFirestore.getInstance())
+    )
 
     NavHost(
         navController = navController,
@@ -87,7 +93,7 @@ fun AppNavGraph(
                             popUpTo(Screen.Home.route) { inclusive = true }
                         }
                     },
-                    callViewModel = callViewModel // ✅ pass shared CallViewModel
+                    callViewModel = callViewModel
                 )
             }
         }
