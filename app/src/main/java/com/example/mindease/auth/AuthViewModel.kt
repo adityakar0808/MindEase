@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mindease.data.models.User
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
@@ -32,6 +33,10 @@ class AuthViewModel : ViewModel() {
     // New state for navigation
     private val _navigateToLogin = MutableStateFlow(false)
     val navigateToLogin: StateFlow<Boolean> = _navigateToLogin
+
+    // New state for password change loading
+    private val _isPasswordChangeLoading = MutableStateFlow(false)
+    val isPasswordChangeLoading: StateFlow<Boolean> = _isPasswordChangeLoading
 
     init {
         listenToCurrentUser()
@@ -119,7 +124,6 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-
     fun signup(email: String, password: String, name: String = "User") {
         viewModelScope.launch {
             if (email.isBlank() || password.isBlank()) {
@@ -156,19 +160,6 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    /*fun loginAnonymously() {
-        _isLoading.value = true
-        auth.signInAnonymously()
-            .addOnCompleteListener { task ->
-                _isLoading.value = false
-                if (task.isSuccessful) {
-                    listenToCurrentUser()
-                } else {
-                    _error.value = task.exception?.localizedMessage ?: "Anonymous login failed"
-                }
-            }
-    }*/
-
     fun firebaseAuthWithGoogle(account: GoogleSignInAccount) {
         _isLoading.value = true
         val credential = GoogleAuthProvider.getCredential(account.idToken, null)
@@ -203,12 +194,122 @@ class AuthViewModel : ViewModel() {
             .addOnSuccessListener {
                 _isLoading.value = false
                 _successMessage.value = "Name updated successfully ✅"
+
+                // Update the local user state immediately
+                _currentUser.value = _currentUser.value?.copy(name = newName)
             }
             .addOnFailureListener { e ->
                 _isLoading.value = false
                 _error.value = e.message
             }
     }
+
+    // ----------------- CHANGE PASSWORD -----------------
+    fun changePassword(currentPassword: String, newPassword: String) {
+        val user = auth.currentUser
+        if (user == null || user.email == null) {
+            _error.value = "No user is currently signed in"
+            return
+        }
+
+        // Validate inputs
+        if (currentPassword.isBlank()) {
+            _error.value = "Current password cannot be empty"
+            return
+        }
+
+        if (newPassword.isBlank()) {
+            _error.value = "New password cannot be empty"
+            return
+        }
+
+        if (newPassword.length < 6) {
+            _error.value = "New password must be at least 6 characters long"
+            return
+        }
+
+        if (currentPassword == newPassword) {
+            _error.value = "New password must be different from current password"
+            return
+        }
+
+        _isPasswordChangeLoading.value = true
+        _error.value = null
+
+        // Create credential with current password for re-authentication
+        val credential = EmailAuthProvider.getCredential(user.email!!, currentPassword)
+
+        // Re-authenticate user with current password
+        user.reauthenticate(credential)
+            .addOnSuccessListener {
+                // If re-authentication successful, update password
+                user.updatePassword(newPassword)
+                    .addOnSuccessListener {
+                        _isPasswordChangeLoading.value = false
+                        _successMessage.value = "Password changed successfully! ✅"
+
+                        // Send email verification for security (optional)
+                        user.sendEmailVerification()
+                            .addOnSuccessListener {
+                                _successMessage.value = "Password changed successfully! A confirmation email has been sent. ✅"
+                            }
+                            .addOnFailureListener {
+                                // Password still changed successfully, just email failed
+                                _successMessage.value = "Password changed successfully! ✅"
+                            }
+                    }
+                    .addOnFailureListener { exception ->
+                        _isPasswordChangeLoading.value = false
+                        _error.value = when {
+                            exception.message?.contains("weak-password") == true ->
+                                "Password is too weak. Please choose a stronger password."
+                            exception.message?.contains("requires-recent-login") == true ->
+                                "Please sign out and sign in again before changing your password."
+                            else -> exception.message ?: "Failed to update password"
+                        }
+                    }
+            }
+            .addOnFailureListener { exception ->
+                _isPasswordChangeLoading.value = false
+                _error.value = when {
+                    exception.message?.contains("wrong-password") == true ->
+                        "Current password is incorrect"
+                    exception.message?.contains("too-many-requests") == true ->
+                        "Too many failed attempts. Please try again later."
+                    exception.message?.contains("user-disabled") == true ->
+                        "This account has been disabled"
+                    else -> "Failed to verify current password: ${exception.message}"
+                }
+            }
+    }
+
+    // ----------------- SEND PASSWORD RESET EMAIL -----------------
+    fun sendPasswordResetEmail(email: String) {
+        if (email.isBlank()) {
+            _error.value = "Email cannot be empty"
+            return
+        }
+
+        _isLoading.value = true
+        _error.value = null
+
+        auth.sendPasswordResetEmail(email)
+            .addOnSuccessListener {
+                _isLoading.value = false
+                _successMessage.value = "Password reset email sent to $email ✅"
+            }
+            .addOnFailureListener { exception ->
+                _isLoading.value = false
+                _error.value = when {
+                    exception.message?.contains("user-not-found") == true ->
+                        "No account found with this email address"
+                    exception.message?.contains("invalid-email") == true ->
+                        "Please enter a valid email address"
+                    else -> exception.message ?: "Failed to send password reset email"
+                }
+            }
+    }
+
     fun giveConsent(sessionId: String, isUserA: Boolean) {
         val field = if (isUserA) "consentA" else "consentB"
         db.collection("call_sessions").document(sessionId)
@@ -233,7 +334,6 @@ class AuthViewModel : ViewModel() {
                     }
             }
     }
-
 
     fun clearMessages() {
         _error.value = null

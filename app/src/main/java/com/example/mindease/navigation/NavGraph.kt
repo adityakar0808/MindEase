@@ -34,7 +34,7 @@ fun AppNavGraph(
     val currentUser by viewModel.currentUser.collectAsState()
     val startDestination = Screen.Splash.route
 
-    // ✅ Use factory to pass context and Firestore
+    // Use factory to pass context and Firestore
     val context = LocalContext.current
     val callViewModel: CallViewModel = viewModel(
         factory = CallViewModelFactory(context, FirebaseFirestore.getInstance())
@@ -77,7 +77,12 @@ fun AppNavGraph(
         composable(Screen.Signup.route) {
             SignupScreen(
                 viewModel = viewModel,
-                onNavigateToLogin = { navController.popBackStack() }
+                onNavigateToLogin = { navController.popBackStack() },
+                onSignupSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Signup.route) { inclusive = true }
+                    }
+                }
             )
         }
 

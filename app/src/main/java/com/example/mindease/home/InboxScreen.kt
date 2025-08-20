@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Chat
@@ -30,6 +32,9 @@ fun InboxScreen(
     onReturnToCall: (() -> Unit)? = null
 ) {
     var connectedUsers by remember { mutableStateOf(listOf<User>()) }
+
+    // Create scroll state
+    val scrollState = rememberScrollState()
 
     // Listen for connected users in active chat sessions
     LaunchedEffect(Unit) {
@@ -75,6 +80,7 @@ fun InboxScreen(
                     )
                 )
             )
+            .verticalScroll(scrollState) // Add scrolling here
             .padding(20.dp)
     ) {
         // Modern Header
@@ -136,7 +142,7 @@ fun InboxScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "📭",
+                        "🔭",
                         style = MaterialTheme.typography.displayLarge
                     )
                     Spacer(modifier = Modifier.height(20.dp))
@@ -184,10 +190,11 @@ fun InboxScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            LazyColumn(
+            // Convert LazyColumn to regular Column for scrolling
+            Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(connectedUsers) { user ->
+                connectedUsers.forEach { user ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
@@ -276,5 +283,8 @@ fun InboxScreen(
                 }
             }
         }
+
+        // Add bottom padding to prevent content cutoff
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }

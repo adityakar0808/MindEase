@@ -205,7 +205,7 @@ fun HomeBottomNav(
                         viewModel = viewModel,
                         onLogout = onLogout,
                         modifier = Modifier.fillMaxSize(),
-                        db = db
+
                     )
                 }
             }
