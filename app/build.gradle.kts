@@ -65,6 +65,7 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.navigation.compose)
     implementation(libs.androidx.tv.material)
+    implementation(libs.androidx.ui.unit)
     // implementation(libs.play.services.auth) // This is duplicated, already included above
     kapt(libs.dagger.hilt.compiler)
 

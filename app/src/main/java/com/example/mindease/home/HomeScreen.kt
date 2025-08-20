@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
@@ -43,6 +45,9 @@ fun HomeScreen(
     navToCallScreen: (sessionId: String) -> Unit
 ) {
     val db = remember { FirebaseFirestore.getInstance() }
+
+    // Create scroll state
+    val scrollState = rememberScrollState()
 
     var stressReason by remember { mutableStateOf("") }
     var waitingUsers by remember { mutableStateOf(listOf<WaitingUser>()) }
@@ -89,6 +94,7 @@ fun HomeScreen(
                     )
                 )
             )
+            .verticalScroll(scrollState) // Add scrolling here
             .padding(20.dp)
     ) {
         // Header Section
@@ -264,20 +270,15 @@ fun HomeScreen(
             if (waitingUsers.isEmpty()) {
                 // Modern empty state
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                     ),
                     shape = RoundedCornerShape(20.dp)
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(40.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        modifier = Modifier.padding(40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             "🔍",
@@ -300,11 +301,12 @@ fun HomeScreen(
                 }
             } else {
                 Spacer(Modifier.height(16.dp))
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
+
+                // Convert LazyColumn to regular Column for scrolling
+                Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(waitingUsers) { waitingUser ->
+                    waitingUsers.forEach { waitingUser ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
@@ -425,8 +427,6 @@ fun HomeScreen(
                     }
                 }
             }
-        } else {
-            Spacer(Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(20.dp))
@@ -479,5 +479,8 @@ fun HomeScreen(
                 )
             }
         }
+
+        // Add bottom padding to prevent content cutoff
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }
