@@ -31,14 +31,18 @@ fun AppNavGraph(
     viewModel: AuthViewModel,
     modifier: Modifier = Modifier
 ) {
+
+    val callViewModel: CallViewModel = viewModel(
+        factory = CallViewModelFactory(
+            context = LocalContext.current
+        )
+    )
     val currentUser by viewModel.currentUser.collectAsState()
     val startDestination = Screen.Splash.route
 
     // Use factory to pass context and Firestore
     val context = LocalContext.current
-    val callViewModel: CallViewModel = viewModel(
-        factory = CallViewModelFactory(context, FirebaseFirestore.getInstance())
-    )
+
 
     NavHost(
         navController = navController,

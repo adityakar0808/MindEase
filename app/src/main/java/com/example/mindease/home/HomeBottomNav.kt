@@ -10,14 +10,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.mindease.auth.AuthViewModel
 import com.example.mindease.call.CallScreen
 import com.example.mindease.call.CallState
 import com.example.mindease.call.CallViewModel
 import com.example.mindease.call.WaitingScreen
+import com.example.mindease.chat.LocalChatViewModel
 import com.example.mindease.data.models.User
+import com.example.mindease.viewmodel.SharedCallViewModelFactory
 import com.google.firebase.firestore.FirebaseFirestore
 
 sealed class BottomNavItem(
@@ -39,10 +43,22 @@ fun HomeBottomNav(
     navController: NavController,
     db: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
+    val context = LocalContext.current
+
+    val localChatViewModel: LocalChatViewModel = viewModel(
+        factory = SharedCallViewModelFactory(context)
+    )
+
     var selectedItem by remember { mutableStateOf<BottomNavItem>(BottomNavItem.Home) }
     val callState by callViewModel.callState.collectAsState()
     val isWaiting by callViewModel.isWaiting.collectAsState()
     val ongoingCallSessionId by callViewModel.ongoingCallSession.collectAsState(initial = null)
+
+    // Connect ViewModels properly without interfering with call functionality
+    DisposableEffect(callViewModel, localChatViewModel) {
+        callViewModel.setLocalChatViewModel(localChatViewModel)
+        onDispose { }
+    }
 
     // Handle call/waiting state changes for navigation
     LaunchedEffect(selectedItem, callState, isWaiting) {
@@ -98,7 +114,6 @@ fun HomeBottomNav(
                         }
                     }
                 }
-
                 isWaiting && selectedItem != BottomNavItem.Home -> {
                     Card(
                         modifier = Modifier
@@ -132,12 +147,12 @@ fun HomeBottomNav(
             // Show bottom navigation in all states except when actively in call screen
             if (callState != CallState.IN_CALL || selectedItem != BottomNavItem.Home) {
                 NavigationBar {
-                    listOf(BottomNavItem.Home, BottomNavItem.Inbox, BottomNavItem.Profile).forEach { item ->
+                    listOf(BottomNavItem.Home, BottomNavItem.Inbox, BottomNavItem.Profile).forEach { navItem ->
                         NavigationBarItem(
-                            icon = item.icon,
-                            label = { Text(item.label) },
-                            selected = selectedItem.route == item.route,
-                            onClick = { selectedItem = item }
+                            icon = navItem.icon,
+                            label = { Text(navItem.label) },
+                            selected = selectedItem.route == navItem.route,
+                            onClick = { selectedItem = navItem }
                         )
                     }
                 }
@@ -154,7 +169,6 @@ fun HomeBottomNav(
                         onChatStart = { /* Optional: can switch to inbox if needed */ }
                     )
                 }
-
                 // Show waiting screen when waiting and on home tab
                 (callState == CallState.WAITING || isWaiting) && selectedItem == BottomNavItem.Home -> {
                     WaitingScreen(
@@ -167,13 +181,13 @@ fun HomeBottomNav(
                         }
                     )
                 }
-
                 // Show regular home screen when idle and on home tab, or when call/waiting is in background
                 selectedItem == BottomNavItem.Home -> {
                     HomeScreen(
                         user = user,
                         viewModel = viewModel,
                         callViewModel = callViewModel,
+                        localChatViewModel = localChatViewModel, // Pass the shared instance
                         modifier = Modifier.fillMaxSize(),
                         navToCallScreen = { sessionId ->
                             callViewModel.startCall(sessionId, user.uid)
@@ -181,31 +195,22 @@ fun HomeBottomNav(
                         }
                     )
                 }
-
                 // Show inbox tab
                 selectedItem == BottomNavItem.Inbox -> {
                     InboxScreen(
                         currentUser = user,
                         callViewModel = callViewModel,
-                        db = db,
-                        modifier = Modifier.fillMaxSize(),
-                        onReturnToCall = {
-                            selectedItem = BottomNavItem.Home
-                            if (callState == CallState.CALL_BACKGROUND) {
-                                callViewModel.setCallForeground()
-                            }
-                        }
+                        localChatViewModel = localChatViewModel, // Pass the shared instance
+                        onReturnToCall = { /* handle return */ }
                     )
                 }
-
                 // Show profile tab
                 selectedItem == BottomNavItem.Profile -> {
                     ProfileScreen(
                         user = user,
                         viewModel = viewModel,
                         onLogout = onLogout,
-                        modifier = Modifier.fillMaxSize(),
-
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }

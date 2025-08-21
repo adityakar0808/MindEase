@@ -9,9 +9,10 @@ class CallViewModelFactory(
     private val context: Context,
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) : ViewModelProvider.Factory {
+
+    @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CallViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
             return CallViewModel(context, db) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")

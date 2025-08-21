@@ -21,23 +21,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.mindease.auth.AuthViewModel
 import com.example.mindease.call.CallViewModel
+import com.example.mindease.call.WaitingUser
+import com.example.mindease.chat.LocalChatViewModel
 import com.example.mindease.data.models.User
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
-
-data class WaitingUser(
-    val uid: String,
-    val nickname: String,
-    val stressReason: String,
-    val timestamp: Timestamp?
-)
 
 // Test Firebase connection function
 private fun testFirebaseConnection(db: FirebaseFirestore, userId: String) {
     Log.d("FirebaseTest", "Testing Firebase connection...")
-
     // Test write
     db.collection("test").document("connection")
         .set(mapOf("userId" to userId, "timestamp" to System.currentTimeMillis()))
@@ -68,37 +63,46 @@ fun HomeScreen(
     user: User,
     viewModel: AuthViewModel,
     callViewModel: CallViewModel,
+    localChatViewModel: LocalChatViewModel, // PRESERVED: Keep this parameter
     modifier: Modifier = Modifier,
     navToCallScreen: (sessionId: String) -> Unit
 ) {
     val db = remember { FirebaseFirestore.getInstance() }
     val scrollState = rememberScrollState()
-
     var stressReason by remember { mutableStateOf("") }
-    var waitingUsers by remember { mutableStateOf(listOf<WaitingUser>()) }
+    var waitingUsers by remember { mutableStateOf<List<WaitingUser>>(listOf()) }
     var isConnecting by remember { mutableStateOf(false) }
+    var connectingToUserId by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val isWaiting by callViewModel.isWaiting.collectAsState(initial = false)
     val sdf = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
+
+    // Clear error message after 5 seconds
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            delay(5000)
+            errorMessage = null
+        }
+    }
 
     // Test Firebase connection
     LaunchedEffect(user.uid) {
         testFirebaseConnection(db, user.uid)
     }
 
-    // Enhanced Firestore listener with better error handling and logging
+    // PRESERVED: Keep your original working Firestore listener exactly as it was
     DisposableEffect(user.uid) {
         Log.d("HomeScreen", "Setting up listener for waiting users")
-
         val listener = db.collection("waiting_users")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("HomeScreen", "Error listening for waiting users", error)
+                    errorMessage = "Error loading users: ${error.message}"
                     return@addSnapshotListener
                 }
 
                 snapshot?.let { querySnapshot ->
                     Log.d("HomeScreen", "Received ${querySnapshot.documents.size} waiting users")
-
                     waitingUsers = querySnapshot.documents
                         .filter { doc ->
                             val docId = doc.id
@@ -121,11 +125,9 @@ fun HomeScreen(
                                 null
                             }
                         }
-
                     Log.d("HomeScreen", "Final waiting users count: ${waitingUsers.size}")
                 }
             }
-
         onDispose {
             Log.d("HomeScreen", "Removing waiting users listener")
             listener.remove()
@@ -146,6 +148,25 @@ fun HomeScreen(
             .verticalScroll(scrollState)
             .padding(20.dp)
     ) {
+        // Error message display
+        errorMessage?.let { message ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
         // Header Section
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -172,9 +193,7 @@ fun HomeScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-
                 Spacer(Modifier.width(16.dp))
-
                 Column {
                     Text(
                         text = "Welcome back,",
@@ -210,9 +229,7 @@ fun HomeScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-
                     Spacer(Modifier.height(12.dp))
-
                     OutlinedTextField(
                         value = stressReason,
                         onValueChange = { stressReason = it },
@@ -233,9 +250,8 @@ fun HomeScreen(
                     )
                 }
             }
+            Spacer(Modifier.height(20.dp))
         }
-
-        Spacer(Modifier.height(20.dp))
 
         if (isWaiting) {
             // Modern waiting status card
@@ -255,9 +271,7 @@ fun HomeScreen(
                             tint = Color(0xFF4CAF50),
                             modifier = Modifier.size(12.dp)
                         )
-
                         Spacer(Modifier.width(8.dp))
-
                         Text(
                             "You're waiting for someone to connect...",
                             style = MaterialTheme.typography.titleLarge,
@@ -265,9 +279,7 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
-
                     Spacer(Modifier.height(12.dp))
-
                     Text(
                         "Your profile is visible to other users looking for a chat",
                         style = MaterialTheme.typography.bodyLarge,
@@ -305,7 +317,6 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-
                 if (waitingUsers.isNotEmpty()) {
                     Card(
                         colors = CardDefaults.cardColors(
@@ -323,175 +334,146 @@ fun HomeScreen(
                     }
                 }
             }
-        }
 
-        if (!isWaiting) {
-            if (waitingUsers.isEmpty()) {
-                // Modern empty state
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(40.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+            if (!isWaiting) {
+                if (waitingUsers.isEmpty()) {
+                    // Modern empty state
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(20.dp)
                     ) {
-                        Text(
-                            "🔍",
-                            style = MaterialTheme.typography.displayLarge
-                        )
-
-                        Spacer(Modifier.height(20.dp))
-
-                        Text(
-                            "No one is waiting right now",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        Text(
-                            "Be the first to start waiting, or check back in a few minutes",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            } else {
-                Spacer(Modifier.height(16.dp))
-                // Display waiting users
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    waitingUsers.forEach { waitingUser ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
+                        Column(
+                            modifier = Modifier.padding(40.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Circle,
-                                                contentDescription = null,
-                                                tint = Color(0xFF4CAF50),
-                                                modifier = Modifier.size(12.dp)
-                                            )
-
-                                            Spacer(Modifier.width(12.dp))
-
-                                            Text(
-                                                waitingUser.nickname,
-                                                style = MaterialTheme.typography.titleLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-
-                                        Spacer(Modifier.height(12.dp))
-
-                                        if (waitingUser.stressReason.isNotBlank()) {
-                                            Card(
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                                ),
-                                                shape = RoundedCornerShape(12.dp)
+                            Text(
+                                "🔍",
+                                style = MaterialTheme.typography.displayLarge
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            Text(
+                                "No one is waiting right now",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Be the first to start waiting, or check back in a few minutes",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(Modifier.height(16.dp))
+                    // Display waiting users
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        waitingUsers.forEach { waitingUser ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(20.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
+                                                Icon(
+                                                    Icons.Default.Circle,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF4CAF50),
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(Modifier.width(12.dp))
                                                 Text(
-                                                    "\"${waitingUser.stressReason}\"",
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.padding(16.dp)
+                                                    waitingUser.nickname,
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
                                                 )
                                             }
-                                            Spacer(Modifier.height(8.dp))
-                                        }
+                                            Spacer(Modifier.height(12.dp))
 
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Schedule,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                                modifier = Modifier.size(16.dp)
-                                            )
-
-                                            Spacer(Modifier.width(6.dp))
-
-                                            Text(
-                                                "Waiting since ${
-                                                    waitingUser.timestamp?.toDate()?.let { sdf.format(it) } ?: "Unknown"
-                                                }",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(Modifier.width(16.dp))
-
-                                    FilledTonalButton(
-                                        onClick = {
-                                            if (!isConnecting) {
-                                                isConnecting = true
-                                                // Find and join the session
-                                                db.collection("call_sessions")
-                                                    .whereEqualTo("userA_uid", waitingUser.uid)
-                                                    .whereEqualTo("status", "waiting")
-                                                    .get()
-                                                    .addOnSuccessListener { query ->
-                                                        if (!query.isEmpty) {
-                                                            val sessionDoc = query.documents.first()
-                                                            val sessionId = sessionDoc.id
-
-                                                            db.collection("call_sessions").document(sessionId)
-                                                                .update(
-                                                                    mapOf(
-                                                                        "userB_uid" to user.uid,
-                                                                        "status" to "ringing"
-                                                                    )
-                                                                )
-                                                                .addOnSuccessListener {
-                                                                    navToCallScreen(sessionId)
-                                                                    isConnecting = false
-                                                                }
-                                                                .addOnFailureListener {
-                                                                    isConnecting = false
-                                                                }
-                                                        } else {
-                                                            isConnecting = false
-                                                        }
-                                                    }
-                                                    .addOnFailureListener {
-                                                        isConnecting = false
-                                                    }
+                                            if (waitingUser.stressReason.isNotBlank()) {
+                                                Card(
+                                                    colors = CardDefaults.cardColors(
+                                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                    ),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ) {
+                                                    Text(
+                                                        "\"${waitingUser.stressReason}\"",
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.padding(16.dp)
+                                                    )
+                                                }
+                                                Spacer(Modifier.height(8.dp))
                                             }
-                                        },
-                                        enabled = !isConnecting,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.height(48.dp)
-                                    ) {
-                                        Text(
-                                            if (isConnecting) "Connecting..." else "Connect",
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Schedule,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    "Waiting since ${
+                                                        waitingUser.timestamp?.toDate()?.let { sdf.format(it) } ?: "Unknown"
+                                                    }",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.width(16.dp))
+                                        FilledTonalButton(
+                                            onClick = {
+                                                if (!isConnecting) {
+                                                    isConnecting = true
+                                                    // PRESERVED: Use the working connection method
+                                                    callViewModel.connectToWaitingUser(
+                                                        waitingUser = waitingUser,
+                                                        currentUser = user,
+                                                        onSuccess = { sessionId ->
+                                                            navToCallScreen(sessionId)
+                                                            isConnecting = false
+                                                        },
+                                                        onError = {
+                                                            isConnecting = false
+                                                            errorMessage = "Failed to connect to user"
+                                                        }
+                                                    )
+                                                }
+                                            },
+                                            enabled = !isConnecting,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.height(48.dp)
+                                        ) {
+                                            Text(
+                                                if (isConnecting) "Connecting..." else "Connect",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -507,18 +489,23 @@ fun HomeScreen(
         if (!isWaiting) {
             Button(
                 onClick = {
-                    if (stressReason.isNotBlank()) {
-                        callViewModel.startWaiting(
-                            uid = user.uid,
-                            nickname = user.name ?: "User",
-                            stressReason = stressReason
-                        )
+                    if (stressReason.isNotBlank() && !isConnecting) {
+                        try {
+                            callViewModel.startWaiting(
+                                uid = user.uid,
+                                nickname = user.name ?: "User",
+                                stressReason = stressReason
+                            )
+                        } catch (e: Exception) {
+                            Log.e("HomeScreen", "Error starting waiting", e)
+                            errorMessage = "Failed to start waiting: ${e.message}"
+                        }
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = stressReason.isNotBlank(),
+                enabled = stressReason.isNotBlank() && !isConnecting,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
@@ -535,10 +522,18 @@ fun HomeScreen(
             }
         } else {
             Button(
-                onClick = { callViewModel.cancelWaiting(user.uid) },
+                onClick = {
+                    try {
+                        callViewModel.cancelWaiting(user.uid)
+                    } catch (e: Exception) {
+                        Log.e("HomeScreen", "Error canceling waiting", e)
+                        errorMessage = "Failed to cancel waiting: ${e.message}"
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
+                enabled = !isConnecting,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error

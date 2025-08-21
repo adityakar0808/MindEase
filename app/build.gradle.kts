@@ -3,8 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.gms.google.services)
-    id("com.google.dagger.hilt.android") // Hilt plugin
-    kotlin("kapt") // still using kapt
+    alias(libs.plugins.ksp) // KSP plugin (only needed for Room now)
 }
 
 android {
@@ -52,6 +51,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
+
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
@@ -59,16 +59,28 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.play.services.auth)
     implementation(libs.firebase.appcheck.playintegrity)
+
+    // WebRTC
     implementation(libs.stream.webrtc.android)
 
-    // Hilt
-    implementation(libs.hilt.android)
+    // Dependency Injection - Koin (modern, lightweight alternative to Hilt)
+    implementation(libs.koin.android)
+    implementation(libs.koin.core)
+    implementation(libs.koin.androidx.compose)
+
+    // Navigation
     implementation(libs.navigation.compose)
+
+    // Room - using KSP instead of kapt
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // Additional dependencies
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.ui.unit)
-    // implementation(libs.play.services.auth) // This is duplicated, already included above
-    kapt(libs.dagger.hilt.compiler)
 
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -77,4 +89,3 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
-
