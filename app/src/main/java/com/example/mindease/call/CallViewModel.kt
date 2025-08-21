@@ -1,6 +1,7 @@
 package com.example.mindease.call
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.FirebaseFirestore
@@ -8,14 +9,9 @@ import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import org.webrtc.SessionDescription
 
-// Add enum for call states
 enum class CallState {
-    IDLE,           // Normal state
-    WAITING,        // Waiting for someone to connect
-    IN_CALL,        // Actively in a call
-    CALL_BACKGROUND // In call but navigated to different screen
+    IDLE, WAITING, IN_CALL, CALL_BACKGROUND
 }
 
 class CallViewModel(
@@ -26,7 +22,6 @@ class CallViewModel(
     private var webRTCClient: WebRTCClient? = null
     private var callListener: ListenerRegistration? = null
 
-    // Replace individual boolean states with a single state
     private val _callState = MutableStateFlow(CallState.IDLE)
     val callState: StateFlow<CallState> = _callState
 
@@ -54,56 +49,73 @@ class CallViewModel(
     private val _connectionStatus = MutableStateFlow("Disconnected")
     val connectionStatus: StateFlow<String> = _connectionStatus
 
-    // Add method to check if banner should be shown
     fun shouldShowBanner(): Boolean {
         return _callState.value == CallState.CALL_BACKGROUND
     }
 
     fun startWaiting(uid: String, nickname: String, stressReason: String) {
+        Log.d("CallViewModel", "Starting waiting for user: $uid")
         _isWaiting.value = true
         _callState.value = CallState.WAITING
 
-        // Create session but don't set as ongoing call yet
+        // Create session ID
         val sessionId = db.collection("call_sessions").document().id
 
-        // Add to waiting users
-        db.collection("waiting_users").document(uid).set(
-            mapOf(
-                "nickname" to nickname,
-                "stressReason" to stressReason,
-                "timestamp" to com.google.firebase.Timestamp.now(),
-                "sessionId" to sessionId
-            )
+        // Add to waiting users with better error handling
+        val waitingUserData = mapOf(
+            "nickname" to nickname,
+            "stressReason" to stressReason,
+            "timestamp" to com.google.firebase.Timestamp.now(),
+            "sessionId" to sessionId
         )
 
-        // Create the call session in waiting state
-        db.collection("call_sessions").document(sessionId).set(
-            mapOf(
-                "userA_uid" to uid,
-                "userB_uid" to null,
-                "status" to "waiting",
-                "timestamp" to com.google.firebase.Timestamp.now()
-            )
-        )
+        db.collection("waiting_users").document(uid).set(waitingUserData)
+            .addOnSuccessListener {
+                Log.d("CallViewModel", "Successfully added to waiting_users: $uid")
 
-        // Listen for someone joining the call
-        listenForCallConnection(sessionId, uid)
+                // Create the call session
+                val sessionData = mapOf(
+                    "userA_uid" to uid,
+                    "userB_uid" to null,
+                    "status" to "waiting",
+                    "timestamp" to com.google.firebase.Timestamp.now()
+                )
+
+                db.collection("call_sessions").document(sessionId).set(sessionData)
+                    .addOnSuccessListener {
+                        Log.d("CallViewModel", "Call session created: $sessionId")
+                        listenForCallConnection(sessionId, uid)
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("CallViewModel", "Failed to create call session", e)
+                        _isWaiting.value = false
+                        _callState.value = CallState.IDLE
+                    }
+            }
+            .addOnFailureListener { e ->
+                Log.e("CallViewModel", "Failed to add to waiting_users", e)
+                _isWaiting.value = false
+                _callState.value = CallState.IDLE
+            }
     }
 
-    // Add listener for incoming call connections
     private fun listenForCallConnection(sessionId: String, currentUserUid: String) {
-        callListener?.remove() // Remove any existing listener
+        callListener?.remove()
         callListener = db.collection("call_sessions").document(sessionId)
             .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
+                if (error != null) {
+                    Log.e("CallViewModel", "Error listening for call connection", error)
+                    return@addSnapshotListener
+                }
 
                 snapshot?.let { doc ->
                     val userB = doc.getString("userB_uid")
                     val status = doc.getString("status")
 
-                    // If someone joined and status changed to ringing
+                    Log.d("CallViewModel", "Call status update: userB=$userB, status=$status")
+
                     if (userB != null && status == "ringing" && _callState.value == CallState.WAITING) {
-                        // Start the call automatically
+                        Log.d("CallViewModel", "Someone joined! Starting call...")
                         startCall(sessionId, currentUserUid)
                     }
                 }
@@ -111,18 +123,21 @@ class CallViewModel(
     }
 
     fun cancelWaiting(uid: String) {
+        Log.d("CallViewModel", "Cancelling waiting for user: $uid")
         _isWaiting.value = false
         _callState.value = CallState.IDLE
         _ongoingCallSession.value = null
 
-        // Remove listeners
         callListener?.remove()
         callListener = null
 
-        // Remove from waiting users and clean up session
+        // Remove from waiting users
         db.collection("waiting_users").document(uid).delete()
+            .addOnSuccessListener {
+                Log.d("CallViewModel", "Removed from waiting_users: $uid")
+            }
 
-        // Clean up the session if it exists
+        // Clean up session
         db.collection("call_sessions")
             .whereEqualTo("userA_uid", uid)
             .whereEqualTo("status", "waiting")
@@ -130,28 +145,30 @@ class CallViewModel(
             .addOnSuccessListener { querySnapshot ->
                 querySnapshot.documents.forEach { doc ->
                     doc.reference.delete()
+                        .addOnSuccessListener {
+                            Log.d("CallViewModel", "Deleted call session: ${doc.id}")
+                        }
                 }
             }
     }
 
     fun startCall(sessionId: String, currentUserUid: String) {
+        Log.d("CallViewModel", "Starting call: $sessionId for user: $currentUserUid")
         _isWaiting.value = false
         _callState.value = CallState.IN_CALL
         _ongoingCallSession.value = sessionId
         _currentUserUid.value = currentUserUid
 
-        // Remove from waiting users if was waiting
+        // Remove from waiting users
         db.collection("waiting_users").document(currentUserUid).delete()
 
-        // Remove call listener since we're now in call
         callListener?.remove()
         callListener = null
 
-        // Automatically initialize WebRTC connection when call starts
+        // Initialize WebRTC connection
         initializeWebRTC(sessionId, currentUserUid)
     }
 
-    // Add method to initialize WebRTC connection
     private fun initializeWebRTC(sessionId: String, currentUserUid: String) {
         viewModelScope.launch {
             if (webRTCClient == null) {
@@ -180,11 +197,9 @@ class CallViewModel(
                         val existingOffer = doc.getString("offer")
 
                         when {
-                            // If current user is userA and no offer exists, create offer
                             userA == currentUserUid && existingOffer.isNullOrEmpty() -> {
                                 webRTCClient?.createOffer()
                             }
-                            // If current user is userB and offer exists, create answer
                             userB == currentUserUid && !existingOffer.isNullOrEmpty() -> {
                                 webRTCClient?.setRemoteDescription(
                                     org.webrtc.SessionDescription.Type.OFFER,
@@ -192,24 +207,18 @@ class CallViewModel(
                                 )
                                 webRTCClient?.createAnswer()
                             }
-                            // If current user is userA and offer exists, wait for answer
-                            userA == currentUserUid && !existingOffer.isNullOrEmpty() -> {
-                                // Just wait for the answer, WebRTC client will handle it
-                            }
                         }
                     }
             }
         }
     }
 
-    // Add method to handle navigation away from call
     fun setCallBackground() {
         if (_callState.value == CallState.IN_CALL) {
             _callState.value = CallState.CALL_BACKGROUND
         }
     }
 
-    // Add method to handle navigation back to call
     fun setCallForeground() {
         if (_callState.value == CallState.CALL_BACKGROUND) {
             _callState.value = CallState.IN_CALL
@@ -217,12 +226,9 @@ class CallViewModel(
     }
 
     fun requestChat() {
-        // This method is now simplified since WebRTC is already initialized
         if (!_chatRequestSent.value) {
             _chatRequestSent.value = true
-            // WebRTC connection should already be established
             if (webRTCClient == null) {
-                // Fallback: initialize if not already done
                 val sessionId = _ongoingCallSession.value
                 val uid = _currentUserUid.value
                 if (sessionId != null && uid != null) {
@@ -241,8 +247,6 @@ class CallViewModel(
         _ongoingCallSession.value = sessionId
         _callState.value = CallState.IN_CALL
         _currentUserUid.value = currentUserUid
-
-        // Initialize WebRTC for answering
         initializeWebRTC(sessionId, currentUserUid)
     }
 
@@ -257,11 +261,9 @@ class CallViewModel(
         _callState.value = CallState.IDLE
         _connectionStatus.value = "Disconnected"
 
-        // Remove listeners
         callListener?.remove()
         callListener = null
 
-        // Clean up any remaining session data
         _currentUserUid.value?.let { uid ->
             db.collection("waiting_users").document(uid).delete()
         }

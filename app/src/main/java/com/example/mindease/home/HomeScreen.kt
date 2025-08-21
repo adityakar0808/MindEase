@@ -1,16 +1,15 @@
 package com.example.mindease.home
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +34,34 @@ data class WaitingUser(
     val timestamp: Timestamp?
 )
 
+// Test Firebase connection function
+private fun testFirebaseConnection(db: FirebaseFirestore, userId: String) {
+    Log.d("FirebaseTest", "Testing Firebase connection...")
+
+    // Test write
+    db.collection("test").document("connection")
+        .set(mapOf("userId" to userId, "timestamp" to System.currentTimeMillis()))
+        .addOnSuccessListener {
+            Log.d("FirebaseTest", "✅ Firebase write successful")
+        }
+        .addOnFailureListener { e ->
+            Log.e("FirebaseTest", "❌ Firebase write failed", e)
+        }
+
+    // Test read
+    db.collection("waiting_users")
+        .get()
+        .addOnSuccessListener { querySnapshot ->
+            Log.d("FirebaseTest", "✅ Firebase read successful. Found ${querySnapshot.size()} waiting users")
+            querySnapshot.documents.forEach { doc ->
+                Log.d("FirebaseTest", "Waiting user: ${doc.id} -> ${doc.data}")
+            }
+        }
+        .addOnFailureListener { e ->
+            Log.e("FirebaseTest", "❌ Firebase read failed", e)
+        }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -45,42 +72,64 @@ fun HomeScreen(
     navToCallScreen: (sessionId: String) -> Unit
 ) {
     val db = remember { FirebaseFirestore.getInstance() }
-
-    // Create scroll state
     val scrollState = rememberScrollState()
 
     var stressReason by remember { mutableStateOf("") }
     var waitingUsers by remember { mutableStateOf(listOf<WaitingUser>()) }
     var isConnecting by remember { mutableStateOf(false) }
-
     val isWaiting by callViewModel.isWaiting.collectAsState(initial = false)
-
     val sdf = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
-    // Safe Firestore listener for waiting users
+    // Test Firebase connection
+    LaunchedEffect(user.uid) {
+        testFirebaseConnection(db, user.uid)
+    }
+
+    // Enhanced Firestore listener with better error handling and logging
     DisposableEffect(user.uid) {
+        Log.d("HomeScreen", "Setting up listener for waiting users")
+
         val listener = db.collection("waiting_users")
             .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
+                if (error != null) {
+                    Log.e("HomeScreen", "Error listening for waiting users", error)
+                    return@addSnapshotListener
+                }
 
-                snapshot?.let {
-                    waitingUsers = it.documents
-                        .filter { doc -> doc.id != user.uid }
+                snapshot?.let { querySnapshot ->
+                    Log.d("HomeScreen", "Received ${querySnapshot.documents.size} waiting users")
+
+                    waitingUsers = querySnapshot.documents
+                        .filter { doc ->
+                            val docId = doc.id
+                            val isCurrentUser = docId == user.uid
+                            Log.d("HomeScreen", "Processing doc: $docId, isCurrentUser: $isCurrentUser")
+                            !isCurrentUser
+                        }
                         .mapNotNull { doc ->
                             try {
-                                WaitingUser(
+                                val waitingUser = WaitingUser(
                                     uid = doc.id,
                                     nickname = doc.getString("nickname") ?: "User",
                                     stressReason = doc.getString("stressReason") ?: "",
                                     timestamp = doc.getTimestamp("timestamp")
                                 )
+                                Log.d("HomeScreen", "Created waiting user: ${waitingUser.nickname}")
+                                waitingUser
                             } catch (e: Exception) {
-                                null // Skip malformed documents
+                                Log.e("HomeScreen", "Error parsing waiting user doc: ${doc.id}", e)
+                                null
                             }
                         }
+
+                    Log.d("HomeScreen", "Final waiting users count: ${waitingUsers.size}")
                 }
             }
-        onDispose { listener.remove() }
+
+        onDispose {
+            Log.d("HomeScreen", "Removing waiting users listener")
+            listener.remove()
+        }
     }
 
     Column(
@@ -94,7 +143,7 @@ fun HomeScreen(
                     )
                 )
             )
-            .verticalScroll(scrollState) // Add scrolling here
+            .verticalScroll(scrollState)
             .padding(20.dp)
     ) {
         // Header Section
@@ -123,7 +172,9 @@ fun HomeScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+
                 Spacer(Modifier.width(16.dp))
+
                 Column {
                     Text(
                         text = "Welcome back,",
@@ -159,7 +210,9 @@ fun HomeScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+
                     Spacer(Modifier.height(12.dp))
+
                     OutlinedTextField(
                         value = stressReason,
                         onValueChange = { stressReason = it },
@@ -180,8 +233,9 @@ fun HomeScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(20.dp))
         }
+
+        Spacer(Modifier.height(20.dp))
 
         if (isWaiting) {
             // Modern waiting status card
@@ -201,7 +255,9 @@ fun HomeScreen(
                             tint = Color(0xFF4CAF50),
                             modifier = Modifier.size(12.dp)
                         )
+
                         Spacer(Modifier.width(8.dp))
+
                         Text(
                             "You're waiting for someone to connect...",
                             style = MaterialTheme.typography.titleLarge,
@@ -209,12 +265,15 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
+
                     Spacer(Modifier.height(12.dp))
+
                     Text(
                         "Your profile is visible to other users looking for a chat",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                     )
+
                     if (stressReason.isNotBlank()) {
                         Spacer(Modifier.height(16.dp))
                         Card(
@@ -234,7 +293,6 @@ fun HomeScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
         } else {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -247,6 +305,7 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+
                 if (waitingUsers.isNotEmpty()) {
                     Card(
                         colors = CardDefaults.cardColors(
@@ -284,14 +343,18 @@ fun HomeScreen(
                             "🔍",
                             style = MaterialTheme.typography.displayLarge
                         )
+
                         Spacer(Modifier.height(20.dp))
+
                         Text(
                             "No one is waiting right now",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
                         Spacer(Modifier.height(12.dp))
+
                         Text(
                             "Be the first to start waiting, or check back in a few minutes",
                             style = MaterialTheme.typography.bodyLarge,
@@ -301,8 +364,7 @@ fun HomeScreen(
                 }
             } else {
                 Spacer(Modifier.height(16.dp))
-
-                // Convert LazyColumn to regular Column for scrolling
+                // Display waiting users
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -331,7 +393,9 @@ fun HomeScreen(
                                                 tint = Color(0xFF4CAF50),
                                                 modifier = Modifier.size(12.dp)
                                             )
+
                                             Spacer(Modifier.width(12.dp))
+
                                             Text(
                                                 waitingUser.nickname,
                                                 style = MaterialTheme.typography.titleLarge,
@@ -339,7 +403,9 @@ fun HomeScreen(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
+
                                         Spacer(Modifier.height(12.dp))
+
                                         if (waitingUser.stressReason.isNotBlank()) {
                                             Card(
                                                 colors = CardDefaults.cardColors(
@@ -356,6 +422,7 @@ fun HomeScreen(
                                             }
                                             Spacer(Modifier.height(8.dp))
                                         }
+
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -365,7 +432,9 @@ fun HomeScreen(
                                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                                 modifier = Modifier.size(16.dp)
                                             )
+
                                             Spacer(Modifier.width(6.dp))
+
                                             Text(
                                                 "Waiting since ${
                                                     waitingUser.timestamp?.toDate()?.let { sdf.format(it) } ?: "Unknown"
@@ -375,7 +444,9 @@ fun HomeScreen(
                                             )
                                         }
                                     }
+
                                     Spacer(Modifier.width(16.dp))
+
                                     FilledTonalButton(
                                         onClick = {
                                             if (!isConnecting) {
@@ -389,6 +460,7 @@ fun HomeScreen(
                                                         if (!query.isEmpty) {
                                                             val sessionDoc = query.documents.first()
                                                             val sessionId = sessionDoc.id
+
                                                             db.collection("call_sessions").document(sessionId)
                                                                 .update(
                                                                     mapOf(
