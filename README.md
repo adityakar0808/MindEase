@@ -86,14 +86,19 @@ app/src/main/java/com/example/mindease
 
 ---
 
-## 🖼️ Screenshots
-*(Upload your screenshots inside a `/screenshots` folder and update the links below)*  
+## 🖼️ Screenshots  
 
-| Login Screen | Home Screen | Chat | Call | AI Chat |
-|--------------|-------------|------|------|---------|
-| ![Login](screenshots/loginscreen.png) | ![Home](screenshots/home.png) | ![Chat](screenshots/chat.png) | ![Call](screenshots/call.png) | ![AI Chat](screenshots/ai_chat.png) |
+| Splash | Login | Signup | Home | Profile |
+|--------|-------|--------|------|---------|
+| ![Splash](screenshots/splashscreen.png) | ![Login](screenshots/loginscreen.png) | ![Signup](screenshots/signupscreen.png) | ![Home](screenshots/homescreen.png) | ![Profile](screenshots/profilescreen.png) |
 
-➡️ You have **14 screenshots** – continue adding rows until all are displayed.
+| Inbox | Chat | Connected Chat | Accept Call | Call Connection |
+|-------|------|----------------|-------------|-----------------|
+| ![Inbox](screenshots/inboxscreen.png) | ![Chat](screenshots/chatscreen.png) | ![Connected Chat](screenshots/connectedchatscreen.png) | ![Accept Call](screenshots/acceptchatscreen.png) | ![Call Connection](screenshots/callconnectionscreen.png) |
+
+| Waiting | AI Chat Box | AI Reply | Stress Reasons |
+|---------|-------------|----------|----------------|
+| ![Waiting](screenshots/waitingscreen.png) | ![AI Chat Box](screenshots/aichatbox.png) | ![AI Reply](screenshots/aireplyscreen.png) | ![Stress Reasons](screenshots/stressreasonscreen.png) |
 
 ---
 
