@@ -91,7 +91,7 @@ app/src/main/java/com/example/mindease
 
 | Login Screen | Home Screen | Chat | Call | AI Chat |
 |--------------|-------------|------|------|---------|
-| ![Login](screenshots/login.png) | ![Home](screenshots/home.png) | ![Chat](screenshots/chat.png) | ![Call](screenshots/call.png) | ![AI Chat](screenshots/ai_chat.png) |
+| ![Login](screenshots/loginscreen.png) | ![Home](screenshots/home.png) | ![Chat](screenshots/chat.png) | ![Call](screenshots/call.png) | ![AI Chat](screenshots/ai_chat.png) |
 
 ➡️ You have **14 screenshots** – continue adding rows until all are displayed.
 
