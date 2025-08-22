@@ -40,6 +40,10 @@ import com.example.mindease.data.models.User
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import androidx.compose.material.icons.filled.Psychology
+import coil.compose.AsyncImage
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,7 +75,31 @@ fun LoginScreen(
         ),
         label = "pulse"
     )
+    var startAnimation by remember { mutableStateOf(false) }
+    val logoScaleAnim = animateFloatAsState(
+        targetValue = if (startAnimation) 1f else 0.3f,
+        animationSpec = tween(
+            durationMillis = 1200,
+            easing = EaseOutBounce
+        ),
+        label = "logoScale"
+    )
 
+    val logoAlphaAnim = animateFloatAsState(
+        targetValue = if (startAnimation) 1f else 0f,
+        animationSpec = tween(durationMillis = 1000),
+        label = "logoAlpha"
+    )
+    val infiniteTransition = rememberInfiniteTransition(label = "floating")
+    val floatingOffset = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 10f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "floatingOffset"
+    )
     LaunchedEffect(Unit) {
         animationState.animateTo(1f, animationSpec = tween(1000))
     }
@@ -98,7 +126,10 @@ fun LoginScreen(
             }
         }
     }
-
+    LaunchedEffect(Unit) {
+        animationState.animateTo(1f, animationSpec = tween(1000))
+        startAnimation = true // Add this line
+    }
     // Handle messages
     LaunchedEffect(error, successMessage) {
         error?.let {
@@ -170,26 +201,38 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(bottom = 32.dp)
             ) {
-                Box(
+                Card(
                     modifier = Modifier
-                        .size(80.dp)
-                        .background(
-                            Color.White.copy(alpha = 0.2f),
-                            CircleShape
-                        )
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
+                        .size(120.dp)
+                        .scale(logoScaleAnim.value)
+                        .alpha(logoAlphaAnim.value)
+                        .offset(y = (-floatingOffset.value).dp),
+                    shape = CircleShape,
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White.copy(alpha = 0.15f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 20.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .fillMaxSize()
                             .background(
-                                Brush.linearGradient(
-                                    colors = listOf(Color.White, Color(0xFFF0F9FF))
-                                ),
-                                RoundedCornerShape(8.dp)
-                            )
-                    )
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.3f),
+                                        Color.White.copy(alpha = 0.1f)
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Psychology, // Brain/Psychology icon for mental health
+                            contentDescription = "MindEase Logo",
+                            modifier = Modifier.size(60.dp),
+                            tint = Color.White
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -335,21 +378,12 @@ fun LoginScreen(
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                     ) {
                         // Google icon placeholder
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(
-                                            Color(0xFF4285F4),
-                                            Color(0xFFEA4335),
-                                            Color(0xFFFBBC05),
-                                            Color(0xFF34A853)
-                                        )
-                                    ),
-                                    CircleShape
-                                )
+                        AsyncImage(
+                            model = "https://developers.google.com/identity/images/g-logo.png",
+                            contentDescription = "Google logo",
+                            modifier = Modifier.size(20.dp)
                         )
+
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             "Continue with Google",
@@ -467,3 +501,5 @@ private fun EnhancedButton(
         }
     }
 }
+
+

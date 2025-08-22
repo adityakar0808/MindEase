@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.mindease.ai.AIChatScreen
 import com.example.mindease.auth.AuthViewModel
 import com.example.mindease.call.CallViewModel
 import com.example.mindease.call.WaitingUser
@@ -77,6 +79,9 @@ fun HomeScreen(
     val isWaiting by callViewModel.isWaiting.collectAsState(initial = false)
     val sdf = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
+    // NEW: State for AI Chat
+    var showAIChat by remember { mutableStateOf(false) }
+
     // Clear error message after 5 seconds
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -132,6 +137,15 @@ fun HomeScreen(
             Log.d("HomeScreen", "Removing waiting users listener")
             listener.remove()
         }
+    }
+
+    // NEW: Show AI Chat if selected
+    if (showAIChat) {
+        AIChatScreen(
+            onBackPressed = { showAIChat = false },
+            modifier = Modifier.fillMaxSize()
+        )
+        return
     }
 
     Column(
@@ -211,6 +225,72 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.height(24.dp))
+
+        // NEW: AI Friend Quick Access Button (always visible)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.secondary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.SmartToy,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "AI Friend",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = "Chat with your AI companion anytime",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                FilledTonalButton(
+                    onClick = { showAIChat = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text(
+                        "Chat",
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondary
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
 
         // Only show stress reason input when not waiting
         if (!isWaiting) {
